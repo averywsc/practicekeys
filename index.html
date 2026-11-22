@@ -44,6 +44,20 @@
         <button id="recordBtn" class="icon-btn record-btn" aria-label="Record">
           <span class="rec-dot"></span>
         </button>
+
+        <button id="tuneBtn" class="icon-btn tune-toggle" aria-label="Controls" aria-expanded="false">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"/>
+            <line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/>
+            <line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/>
+            <line x1="9" y1="8" x2="15" y2="8"/>
+            <line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+        </button>
       </div>
 
       <div class="bar-group bar-center">
@@ -64,6 +78,13 @@
           </svg>
         </button>
 
+        <button id="nextBtn" class="icon-btn" aria-label="Next">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 4 15 12 5 20 5 4"/>
+            <line x1="19" y1="5" x2="19" y2="19"/>
+          </svg>
+        </button>
+
         <button id="loopBtn" class="icon-btn" aria-label="Loop">
           <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="17 2 21 6 17 10"/>
@@ -81,47 +102,50 @@
             <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.8-5.9-2.2L3.3 17a2 2 0 0 1 2.8-2.8L8 16"/>
           </svg>
         </button>
-
-        <div class="speed-wrap">
-          <svg class="icon icon-sm speed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 14l4-4"/>
-            <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
-          </svg>
-          <input id="speedSlider" class="slider" type="range" min="0.2" max="1.5" step="0.05" value="1" aria-label="Speed">
-        </div>
       </div>
 
       <div class="bar-group bar-right">
-        <div class="seg-group">
-          <button id="leftHandBtn" class="icon-btn hand-btn hand-left active" aria-label="Left Hand">
-            <span class="hand-dot"></span>
-          </button>
-          <button id="rightHandBtn" class="icon-btn hand-btn hand-right active" aria-label="Right Hand">
-            <span class="hand-dot"></span>
-          </button>
+        <div id="tunePanel" class="tune-panel">
+          <div class="speed-wrap">
+            <svg class="icon icon-sm speed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 14l4-4"/>
+              <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+            </svg>
+            <input id="speedSlider" class="slider" type="range" min="0.2" max="1.5" step="0.05" value="1" aria-label="Speed">
+          </div>
+
+          <div class="seg-group">
+            <button id="leftHandBtn" class="icon-btn hand-btn hand-left active" aria-label="Left Hand">
+              <span class="hand-dot"></span>
+            </button>
+            <button id="rightHandBtn" class="icon-btn hand-btn hand-right active" aria-label="Right Hand">
+              <span class="hand-dot"></span>
+            </button>
+          </div>
+
+          <div class="seg-group zoom-seg">
+            <button id="zoomOutBtn" class="icon-btn" aria-label="Zoom Out">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="6" y1="12" x2="18" y2="12"/>
+              </svg>
+            </button>
+            <button id="zoomInBtn" class="icon-btn" aria-label="Zoom In">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="6" x2="12" y2="18"/>
+                <line x1="6" y1="12" x2="18" y2="12"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div class="seg-group">
-          <button id="zoomOutBtn" class="icon-btn" aria-label="Zoom Out">
-            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="6" y1="12" x2="18" y2="12"/>
-            </svg>
-          </button>
-          <button id="fullScaleBtn" class="icon-btn" aria-label="Scale Piano">
-            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 3 21 3 21 9"/>
-              <polyline points="9 21 3 21 3 15"/>
-              <line x1="21" y1="3" x2="14" y2="10"/>
-              <line x1="3" y1="21" x2="10" y2="14"/>
-            </svg>
-          </button>
-          <button id="zoomInBtn" class="icon-btn" aria-label="Zoom In">
-            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="12" y1="6" x2="12" y2="18"/>
-              <line x1="6" y1="12" x2="18" y2="12"/>
-            </svg>
-          </button>
-        </div>
+        <button id="fullScaleBtn" class="icon-btn" aria-label="Scale Piano">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"/>
+            <polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/>
+            <line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+        </button>
 
         <button id="muteBtn" class="icon-btn" aria-label="Sound">
           <svg id="soundOnIcon" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -149,6 +173,19 @@
 
     <main id="stage">
       <canvas id="canvas"></canvas>
+
+      <div id="countdownOverlay" class="countdown-overlay" hidden>
+        <button id="countdownCard" class="countdown-card" aria-label="Start">
+          <div class="countdown-ring-wrap">
+            <svg class="countdown-svg" viewBox="0 0 120 120">
+              <circle class="countdown-bg" cx="60" cy="60" r="52"/>
+              <circle id="countdownRing" class="countdown-fg" cx="60" cy="60" r="52"/>
+            </svg>
+            <span id="countdownNum" class="countdown-num">5</span>
+          </div>
+          <span id="countdownSong" class="countdown-song"></span>
+        </button>
+      </div>
     </main>
 
     <div id="dropOverlay" class="drop-overlay" hidden>

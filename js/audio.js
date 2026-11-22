@@ -18,6 +18,7 @@
       this.activeVoices = new Map();
       this.sustainedVoices = new Set();
       this.noiseBuffer = null;
+      this._unlocked = false;
     }
 
     ensureContext() {
@@ -27,23 +28,23 @@
         this.ctx = new AudioCtx();
 
         const comp = this.ctx.createDynamicsCompressor();
-        comp.threshold.value = -16;
-        comp.knee.value = 18;
-        comp.ratio.value = 4;
+        comp.threshold.value = -15;
+        comp.knee.value = 20;
+        comp.ratio.value = 3.8;
         comp.attack.value = 0.004;
-        comp.release.value = 0.18;
+        comp.release.value = 0.2;
 
         this.master = this.ctx.createGain();
-        this.master.gain.value = this.muted ? 0 : 0.72;
+        this.master.gain.value = this.muted ? 0 : 0.76;
 
         this.dry = this.ctx.createGain();
-        this.dry.gain.value = 0.84;
+        this.dry.gain.value = 0.82;
 
         this.wet = this.ctx.createGain();
-        this.wet.gain.value = 0.22;
+        this.wet.gain.value = 0.26;
 
         const convolver = this.ctx.createConvolver();
-        convolver.buffer = this._createReverbImpulse(1.5, 2.8);
+        convolver.buffer = this._createReverbImpulse(1.75, 2.6);
 
         this.dry.connect(comp);
         this.wet.connect(convolver);
@@ -79,8 +80,8 @@
         for (let i = 0; i < length; i++) {
           const env = Math.pow(1 - i / length, decay);
           const white = Math.random() * 2 - 1;
-          lp = lp * 0.65 + white * 0.35;
-          data[i] = lp * env * 0.55;
+          lp = lp * 0.68 + white * 0.32;
+          data[i] = lp * env * 0.56;
         }
       }
       return impulse;
@@ -88,11 +89,11 @@
 
     _createHammerNoise() {
       const rate = this.ctx.sampleRate;
-      const len = Math.floor(rate * 0.035);
+      const len = Math.floor(rate * 0.032);
       const buf = this.ctx.createBuffer(1, len, rate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
       }
       return buf;
     }
@@ -102,7 +103,7 @@
       if (this.master && this.ctx) {
         const now = this.ctx.currentTime;
         this.master.gain.cancelScheduledValues(now);
-        this.master.gain.setTargetAtTime(this.muted ? 0 : 0.72, now, 0.015);
+        this.master.gain.setTargetAtTime(this.muted ? 0 : 0.76, now, 0.015);
       }
     }
 
@@ -129,22 +130,22 @@
       const now = ctx.currentTime;
       const freq = midiToFreq(midi);
       const pitchNorm = Math.max(0, Math.min(1, (midi - 21) / 87));
-      const decayTime = 3.8 - pitchNorm * 2.5;
+      const decayTime = 4.2 - pitchNorm * 2.75;
 
       const voiceGain = ctx.createGain();
-      const peak = (0.14 + vel * 0.22) * (1.12 - pitchNorm * 0.3);
+      const peak = (0.14 + vel * 0.22) * (1.14 - pitchNorm * 0.28);
       voiceGain.gain.setValueAtTime(0.0001, now);
-      voiceGain.gain.linearRampToValueAtTime(peak, now + 0.005);
-      voiceGain.gain.exponentialRampToValueAtTime(peak * 0.42, now + 0.14);
-      voiceGain.gain.exponentialRampToValueAtTime(0.0008, now + decayTime);
+      voiceGain.gain.linearRampToValueAtTime(peak, now + 0.0045);
+      voiceGain.gain.exponentialRampToValueAtTime(peak * 0.44, now + 0.15);
+      voiceGain.gain.exponentialRampToValueAtTime(0.0007, now + decayTime);
 
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      const brightCutoff = Math.min(14000, freq * (4.5 + vel * 6.5));
-      const warmCutoff = Math.min(4800, freq * (1.8 + vel * 1.4));
+      const brightCutoff = Math.min(14500, freq * (4.8 + vel * 6.8));
+      const warmCutoff = Math.min(5000, freq * (1.85 + vel * 1.45));
       filter.frequency.setValueAtTime(brightCutoff, now);
-      filter.frequency.exponentialRampToValueAtTime(Math.max(220, warmCutoff), now + 0.42);
-      filter.Q.value = 0.7;
+      filter.frequency.exponentialRampToValueAtTime(Math.max(210, warmCutoff), now + 0.46);
+      filter.Q.value = 0.65;
 
       const osc1 = ctx.createOscillator();
       osc1.type = 'triangle';
@@ -153,23 +154,23 @@
       const osc2 = ctx.createOscillator();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(freq * 2, now);
-      osc2.detune.setValueAtTime(1.2, now);
+      osc2.detune.setValueAtTime(1.1, now);
 
       const osc3 = ctx.createOscillator();
       osc3.type = 'sine';
       osc3.frequency.setValueAtTime(freq * 3, now);
-      osc3.detune.setValueAtTime(-1.8, now);
+      osc3.detune.setValueAtTime(-1.6, now);
 
       const g1 = ctx.createGain();
-      g1.gain.value = 0.72;
+      g1.gain.value = 0.74;
 
       const g2 = ctx.createGain();
-      g2.gain.setValueAtTime(0.24 * (1.1 - pitchNorm * 0.45), now);
-      g2.gain.exponentialRampToValueAtTime(0.01, now + decayTime * 0.65);
+      g2.gain.setValueAtTime(0.24 * (1.12 - pitchNorm * 0.42), now);
+      g2.gain.exponentialRampToValueAtTime(0.01, now + decayTime * 0.68);
 
       const g3 = ctx.createGain();
-      g3.gain.setValueAtTime(0.1 * (1 - pitchNorm * 0.5), now);
-      g3.gain.exponentialRampToValueAtTime(0.002, now + decayTime * 0.35);
+      g3.gain.setValueAtTime(0.095 * (1.05 - pitchNorm * 0.48), now);
+      g3.gain.exponentialRampToValueAtTime(0.002, now + decayTime * 0.36);
 
       osc1.connect(g1);
       osc2.connect(g2);
@@ -178,16 +179,15 @@
       g2.connect(filter);
       g3.connect(filter);
 
-      let noiseSrc = null;
       if (this.noiseBuffer) {
-        noiseSrc = ctx.createBufferSource();
+        const noiseSrc = ctx.createBufferSource();
         noiseSrc.buffer = this.noiseBuffer;
         const nFilter = ctx.createBiquadFilter();
         nFilter.type = 'bandpass';
-        nFilter.frequency.value = Math.min(4200, Math.max(700, freq * 2.2));
-        nFilter.Q.value = 1.2;
+        nFilter.frequency.value = Math.min(4400, Math.max(680, freq * 2.1));
+        nFilter.Q.value = 1.25;
         const nGain = ctx.createGain();
-        nGain.gain.value = 0.07 * vel;
+        nGain.gain.value = 0.065 * vel;
         noiseSrc.connect(nFilter);
         nFilter.connect(nGain);
         nGain.connect(voiceGain);
@@ -195,14 +195,24 @@
       }
 
       filter.connect(voiceGain);
-      voiceGain.connect(this.dry);
-      voiceGain.connect(this.wet);
+
+      // Gentle stereo grand-piano spread (bass left, treble right)
+      let outNode = voiceGain;
+      if (typeof ctx.createStereoPanner === 'function') {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = (pitchNorm - 0.5) * 0.56;
+        voiceGain.connect(panner);
+        outNode = panner;
+      }
+
+      outNode.connect(this.dry);
+      outNode.connect(this.wet);
 
       osc1.start(now);
       osc2.start(now);
       osc3.start(now);
 
-      const stopAt = now + decayTime + 0.15;
+      const stopAt = now + decayTime + 0.16;
       osc1.stop(stopAt);
       osc2.stop(stopAt);
       osc3.stop(stopAt);
@@ -234,7 +244,7 @@
       if (this.sustain && sourceKey !== 'song') {
         this.sustainedVoices.add(voice);
       } else {
-        this._fadeVoice(voice, 0.18);
+        this._fadeVoice(voice, 0.19);
       }
     }
 
@@ -248,10 +258,10 @@
       const now = ctx.currentTime;
       const releaseStart = now + dur;
       try {
-        voice.gain.gain.setTargetAtTime(0.0001, releaseStart, 0.065);
+        voice.gain.gain.setTargetAtTime(0.0001, releaseStart, 0.075);
         voice.oscs.forEach((o) => {
           try {
-            o.stop(releaseStart + 0.35);
+            o.stop(releaseStart + 0.38);
           } catch (_) {}
         });
       } catch (_) {}

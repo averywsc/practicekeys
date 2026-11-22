@@ -56,8 +56,9 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  z-index: 20;
+  z-index: 25;
   flex-shrink: 0;
+  position: relative;
 }
 
 .bar-group {
@@ -80,6 +81,16 @@ html, body {
 .bar-right {
   flex: 1 1 0;
   justify-content: flex-end;
+}
+
+.tune-toggle {
+  display: none;
+}
+
+.tune-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .icon {
@@ -129,7 +140,7 @@ button:focus-visible {
 }
 
 .icon-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.93);
 }
 
 .icon-btn.active {
@@ -148,7 +159,7 @@ button:focus-visible {
 .primary-btn:hover {
   background: #ffffff;
   color: #0b0d12;
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.22);
 }
 
 .seg-group {
@@ -168,7 +179,7 @@ button:focus-visible {
 }
 
 .hand-btn {
-  opacity: 0.35;
+  opacity: 0.32;
 }
 
 .hand-btn.active {
@@ -177,11 +188,11 @@ button:focus-visible {
 }
 
 .hand-btn.hand-left.active {
-  background: rgba(167, 139, 250, 0.2);
+  background: rgba(167, 139, 250, 0.22);
 }
 
 .hand-btn.hand-right.active {
-  background: rgba(56, 189, 248, 0.2);
+  background: rgba(56, 189, 248, 0.22);
 }
 
 .hand-dot {
@@ -193,12 +204,12 @@ button:focus-visible {
 
 .hand-left .hand-dot {
   background: var(--lh);
-  box-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.65);
 }
 
 .hand-right .hand-dot {
   background: var(--rh);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
 }
 
 .record-btn .rec-dot {
@@ -235,12 +246,11 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  padding: 0 9px;
   height: 32px;
   border-radius: 9px;
   background: var(--surface);
   border: 1px solid var(--border);
-  margin-left: 4px;
 }
 
 .speed-icon {
@@ -260,8 +270,8 @@ button:focus-visible {
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: var(--text);
   cursor: pointer;
@@ -273,8 +283,8 @@ button:focus-visible {
 }
 
 .slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   border: none;
   border-radius: 50%;
   background: var(--text);
@@ -328,15 +338,17 @@ button:focus-visible {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: 248px;
-  max-height: 340px;
+  width: 264px;
+  max-height: min(420px, 65dvh);
   overflow-y: auto;
-  background: #161a25;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(22, 26, 37, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
   padding: 6px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-  z-index: 40;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+  z-index: 50;
 }
 
 .song-menu::-webkit-scrollbar {
@@ -344,7 +356,7 @@ button:focus-visible {
 }
 
 .song-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 999px;
 }
 
@@ -354,13 +366,19 @@ button:focus-visible {
   gap: 2px;
 }
 
+.song-divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .song-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 8.5px 10px;
   border-radius: 8px;
   font-size: 13.5px;
   color: #cbd4e3;
@@ -374,7 +392,7 @@ button:focus-visible {
 }
 
 .song-item.active {
-  background: rgba(56, 189, 248, 0.15);
+  background: rgba(56, 189, 248, 0.16);
   color: var(--rh);
   font-weight: 500;
 }
@@ -387,8 +405,8 @@ button:focus-visible {
 }
 
 .song-del {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
@@ -418,7 +436,7 @@ button:focus-visible {
 }
 
 .progress-wrap {
-  height: 10px;
+  height: 12px;
   background: var(--bg);
   display: flex;
   align-items: center;
@@ -452,8 +470,8 @@ button:focus-visible {
   position: absolute;
   top: 50%;
   left: 0%;
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: #ffffff;
   transform: translate(-50%, -50%) scale(0);
@@ -479,6 +497,101 @@ button:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* 5-second countdown between songs */
+.countdown-overlay {
+  position: absolute;
+  inset: 0 0 26% 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 18;
+  animation: fadeIn 180ms ease;
+}
+
+.countdown-overlay[hidden] {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.countdown-card {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 28px;
+  border-radius: 26px;
+  background: rgba(14, 18, 28, 0.84);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+
+.countdown-card:hover {
+  transform: scale(1.03);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.countdown-card:active {
+  transform: scale(0.97);
+}
+
+.countdown-ring-wrap {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.countdown-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 5;
+}
+
+.countdown-fg {
+  fill: none;
+  stroke: var(--rh);
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  stroke-dasharray: 326.73;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.65));
+}
+
+.countdown-num {
+  position: absolute;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-song {
+  font-size: 16px;
+  font-weight: 500;
+  color: #e2e8f0;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .drop-overlay {
@@ -517,34 +630,38 @@ button:focus-visible {
 
 @media (hover: none) {
   .song-del {
-    opacity: 0.7;
+    opacity: 0.72;
   }
   .progress-wrap {
     height: 18px;
   }
   .progress-thumb {
-    transform: translate(-50%, -50%) scale(0.85);
+    transform: translate(-50%, -50%) scale(0.9);
   }
   .slider::-webkit-slider-thumb {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
   .slider::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
 }
 
-@media (max-width: 780px) {
+/* Tablet and mobile responsive bar with clean floating tune drawer */
+@media (max-width: 860px) {
   #topbar {
     flex-wrap: wrap;
-    padding: calc(env(safe-area-inset-top, 0px) + 6px) 10px 6px 10px;
-    gap: 6px;
+    padding: calc(env(safe-area-inset-top, 0px) + 7px) 10px 7px 10px;
+    gap: 7px;
+  }
+  .tune-toggle {
+    display: inline-flex;
   }
   .bar-left {
     flex: 1 1 100%;
     order: 1;
-    justify-content: space-between;
+    gap: 6px;
   }
   .song-picker {
     flex: 1 1 auto;
@@ -552,8 +669,9 @@ button:focus-visible {
   }
   .pill-btn {
     width: 100%;
-    justify-content: space-between;
-    height: 36px;
+    height: 38px;
+    padding: 0 12px;
+    font-size: 14px;
   }
   .song-title {
     max-width: none;
@@ -562,67 +680,94 @@ button:focus-visible {
   }
   .song-menu {
     width: calc(100vw - 20px);
-    max-width: 340px;
-    max-height: 50dvh;
+    max-width: 360px;
+    max-height: 55dvh;
   }
   .song-item {
-    padding: 11px 12px;
-    font-size: 14.5px;
+    padding: 12px 12px;
+    font-size: 15px;
   }
   .bar-center {
     flex: 1 1 auto;
     order: 2;
     justify-content: flex-start;
+    gap: 6px;
   }
   .bar-right {
     flex: 0 0 auto;
     order: 3;
     justify-content: flex-end;
-  }
-  .speed-wrap {
-    padding: 0 6px;
-    margin-left: 2px;
-  }
-  .slider {
-    width: 50px;
-  }
-}
-
-@media (max-width: 480px) {
-  #topbar {
-    padding: calc(env(safe-area-inset-top, 0px) + 5px) 8px 5px 8px;
-    gap: 5px;
-  }
-  .bar-group {
-    gap: 3px;
+    gap: 6px;
   }
   .icon-btn {
-    width: 30px;
-    height: 30px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
   }
   .primary-btn {
+    width: 42px;
+    height: 42px;
+  }
+  .tune-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(22, 26, 37, 0.96);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
+    z-index: 45;
+    gap: 10px;
+  }
+  .tune-panel.open {
+    display: inline-flex;
+    animation: fadeIn 140ms ease;
+  }
+  .tune-panel .speed-wrap {
+    height: 38px;
+    padding: 0 11px;
+  }
+  .tune-panel .slider {
+    width: 96px;
+  }
+  .tune-panel .seg-group .icon-btn {
     width: 34px;
     height: 34px;
   }
-  .seg-group .icon-btn {
-    width: 24px;
-    height: 24px;
+}
+
+@media (max-width: 380px) {
+  #topbar {
+    padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 6px 8px;
+    gap: 6px;
   }
-  .speed-wrap {
-    padding: 0 5px;
-    gap: 0;
-    height: 28px;
-    margin-left: 1px;
+  .bar-center,
+  .bar-right {
+    gap: 3px;
   }
-  .speed-icon {
-    display: none;
+  .icon-btn {
+    width: 34px;
+    height: 34px;
   }
-  .slider {
-    width: 36px;
+  .primary-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .tune-panel {
+    left: 8px;
+    right: 8px;
+    justify-content: space-between;
+  }
+  .tune-panel .slider {
+    width: 78px;
   }
 }
 
-@media (max-height: 480px) and (orientation: landscape) {
+/* Compact single-row bar in phone landscape so canvas gets maximum room */
+@media (max-height: 500px) and (orientation: landscape) {
   #topbar {
     flex-wrap: nowrap;
     min-height: 44px;
@@ -636,26 +781,37 @@ button:focus-visible {
   .bar-center {
     flex: 0 0 auto;
     order: 2;
+    gap: 4px;
   }
   .bar-right {
     flex: 1 1 0;
     order: 3;
+    gap: 4px;
   }
   .song-picker {
-    max-width: 180px;
+    max-width: 190px;
   }
   .pill-btn {
     height: 32px;
+    font-size: 13px;
   }
   .icon-btn {
     width: 32px;
     height: 32px;
   }
   .primary-btn {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
   }
-  .slider {
-    width: 48px;
+  .countdown-ring-wrap {
+    width: 78px;
+    height: 78px;
+  }
+  .countdown-num {
+    font-size: 30px;
+  }
+  .countdown-card {
+    padding: 14px 22px;
+    gap: 8px;
   }
 }

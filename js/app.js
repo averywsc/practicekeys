@@ -7,6 +7,8 @@
   const MAX_MIDI = 108; // C8
   const LEAD_IN = 2.4;
   const LOOKAHEAD_SEC = 3.2;
+  const COUNTDOWN_SEC = 5.0;
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 52;
 
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const IS_BLACK = [false, true, false, true, false, false, true, false, true, false, true, false];
@@ -72,11 +74,14 @@
   const uploadBtn = document.getElementById('uploadBtn');
   const fileInput = document.getElementById('fileInput');
   const recordBtn = document.getElementById('recordBtn');
+  const tuneBtn = document.getElementById('tuneBtn');
+  const tunePanel = document.getElementById('tunePanel');
 
   const restartBtn = document.getElementById('restartBtn');
   const playBtn = document.getElementById('playBtn');
   const playIcon = document.getElementById('playIcon');
   const pauseIcon = document.getElementById('pauseIcon');
+  const nextBtn = document.getElementById('nextBtn');
   const loopBtn = document.getElementById('loopBtn');
   const learnBtn = document.getElementById('learnBtn');
   const speedSlider = document.getElementById('speedSlider');
@@ -96,11 +101,17 @@
   const progressThumb = document.getElementById('progressThumb');
   const dropOverlay = document.getElementById('dropOverlay');
 
+  const countdownOverlay = document.getElementById('countdownOverlay');
+  const countdownCard = document.getElementById('countdownCard');
+  const countdownRing = document.getElementById('countdownRing');
+  const countdownNum = document.getElementById('countdownNum');
+  const countdownSong = document.getElementById('countdownSong');
+
   // Application state
   const builtInSongs = PianoApp.songs.createBuiltInSongs();
   let customSongs = PianoApp.songs.loadCustomSongs();
-  let allSongs = builtInSongs.concat(customSongs);
-  let currentSong = allSongs[0];
+  let allSongs = customSongs.concat(builtInSongs);
+  let currentSong = builtInSongs[0];
 
   let playing = false;
   let loopMode = false;
@@ -110,6 +121,7 @@
   let leftHandOn = true;
   let rightHandOn = true;
   let fullScaleMode = false;
+  let manualZoomed = false;
 
   let currentTime = -LEAD_IN;
   let triggeredNotes = new Set();
@@ -117,12 +129,16 @@
   let waitingLearnMidis = new Set();
   let waitingForInput = false;
 
+  // 5-second countdown between songs
+  let countdownActive = false;
+  let countdownRemaining = 0;
+
   // Screen Wake Lock (keeps phone/tablet awake on a piano music stand)
   let wakeLockSentinel = null;
   async function syncWakeLock() {
     if (!('wakeLock' in navigator)) return;
     try {
-      if (playing && document.visibilityState === 'visible') {
+      if ((playing || countdownActive) && document.visibilityState === 'visible') {
         if (!wakeLockSentinel) {
           wakeLockSentinel = await navigator.wakeLock.request('screen');
           wakeLockSentinel.addEventListener('release', () => {
@@ -137,7 +153,7 @@
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && playing) {
+    if (document.visibilityState === 'visible' && (playing || countdownActive)) {
       syncWakeLock();
     }
   });
@@ -147,6 +163,7 @@
   let viewEnd = TOTAL_WHITES;
   let targetStart = 0;
   let targetEnd = TOTAL_WHITES;
+  let panVelocity = 0;
 
   // Interaction state
   let baseOctave = 4; // C4 = MIDI 60
@@ -200,6 +217,7 @@
   }
 
   function applyScaleTarget(instant) {
+    panVelocity = 0;
     if (fullScaleMode) {
       targetStart = 0;
       targetEnd = TOTAL_WHITES;
@@ -216,6 +234,8 @@
   }
 
   function zoomBy(deltaWhites, anchorRatio) {
+    panVelocity = 0;
+    manualZoomed = true;
     const minSpan = getMinSpan();
     const span = targetEnd - targetStart;
     const nextSpan = clamp(span + deltaWhites, minSpan, TOTAL_WHITES);
@@ -245,10 +265,12 @@
     if (s < 0) {
       e -= s;
       s = 0;
+      panVelocity = 0;
     }
     if (e > TOTAL_WHITES) {
       s -= e - TOTAL_WHITES;
       e = TOTAL_WHITES;
+      panVelocity = 0;
     }
     targetStart = s;
     targetEnd = e;
@@ -282,7 +304,7 @@
 
   function resize() {
     const rect = stage.getBoundingClientRect();
-    const dpr = Math.min(global.devicePixelRatio || 1, 2);
+    const dpr = Math.min(global.devicePixelRatio || 1, 3);
     canvasW = Math.max(1, rect.width);
     canvasH = Math.max(1, rect.height);
     canvas.width = Math.round(canvasW * dpr);
@@ -292,17 +314,76 @@
     if (canvasH < 480) {
       keyHeight = clamp(Math.round(canvasH * 0.34), 102, 150);
     } else if (canvasW < 640 && canvasH > canvasW) {
-      keyHeight = clamp(Math.round(canvasH * 0.27), 140, 224);
+      keyHeight = clamp(Math.round(canvasH * 0.27), 144, 232);
     } else {
-      keyHeight = clamp(Math.round(canvasH * 0.24), 124, 206);
+      keyHeight = clamp(Math.round(canvasH * 0.24), 126, 208);
     }
     waterfallH = Math.max(110, canvasH - keyHeight);
+
+    if (!manualZoomed) {
+      applyScaleTarget(false);
+    }
+  }
+
+  function syncPlayIcons() {
+    const active = playing || countdownActive;
+    playIcon.hidden = active;
+    pauseIcon.hidden = !active;
+  }
+
+  function cancelCountdown() {
+    countdownActive = false;
+    countdownRemaining = 0;
+    countdownOverlay.hidden = true;
+    syncPlayIcons();
+    syncWakeLock();
+  }
+
+  function startBetweenSongCountdown(nextSong) {
+    if (!nextSong) return;
+    currentSong = nextSong;
+    songTitle.textContent = nextSong.name;
+    playing = false;
+    PianoApp.audio.stopAll('song:');
+    seekTo(-LEAD_IN);
+    manualZoomed = false;
+    applyScaleTarget(false);
+    renderSongList();
+
+    countdownActive = true;
+    countdownRemaining = COUNTDOWN_SEC;
+    countdownSong.textContent = nextSong.name;
+    updateCountdownVisual();
+    countdownOverlay.hidden = false;
+    syncPlayIcons();
+    syncWakeLock();
+  }
+
+  function updateCountdownVisual() {
+    const secs = Math.max(1, Math.ceil(countdownRemaining));
+    countdownNum.textContent = String(secs);
+    const frac = clamp(1 - countdownRemaining / COUNTDOWN_SEC, 0, 1);
+    countdownRing.style.strokeDashoffset = (frac * RING_CIRCUMFERENCE).toFixed(2);
+  }
+
+  function finishCountdownAndPlay() {
+    countdownActive = false;
+    countdownRemaining = 0;
+    countdownOverlay.hidden = true;
+    setPlaying(true);
   }
 
   function setPlaying(next) {
+    if (next && countdownActive) {
+      finishCountdownAndPlay();
+      return;
+    }
+    if (!next && countdownActive) {
+      cancelCountdown();
+      return;
+    }
     playing = !!next;
-    playIcon.hidden = playing;
-    pauseIcon.hidden = !playing;
+    syncPlayIcons();
     if (playing) {
       PianoApp.audio.ensureContext();
       if (currentSong && currentTime >= currentSong.duration + 0.3) {
@@ -333,11 +414,19 @@
     updateProgressUI();
   }
 
+  function getNextSong() {
+    if (!allSongs.length) return currentSong;
+    const idx = allSongs.findIndex((s) => currentSong && s.id === currentSong.id);
+    return allSongs[(idx + 1 + allSongs.length) % allSongs.length];
+  }
+
   function selectSong(song, autoPlay) {
+    cancelCountdown();
     currentSong = song;
     songTitle.textContent = song.name;
     setPlaying(false);
     seekTo(-LEAD_IN);
+    manualZoomed = false;
     applyScaleTarget(false);
     renderSongList();
     if (autoPlay) setPlaying(true);
@@ -345,7 +434,9 @@
 
   function renderSongList() {
     songListEl.innerHTML = '';
-    for (const song of allSongs) {
+    const hasCustom = customSongs.length > 0;
+
+    function addRow(song) {
       const row = document.createElement('div');
       row.className = 'song-item' + (currentSong && currentSong.id === song.id ? ' active' : '');
       row.setAttribute('role', 'button');
@@ -375,12 +466,20 @@
       });
       songListEl.appendChild(row);
     }
+
+    for (const song of customSongs) addRow(song);
+    if (hasCustom) {
+      const div = document.createElement('div');
+      div.className = 'song-divider';
+      songListEl.appendChild(div);
+    }
+    for (const song of builtInSongs) addRow(song);
   }
 
   function removeCustomSong(id) {
     customSongs = customSongs.filter((s) => s.id !== id);
     PianoApp.songs.saveCustomSongs(customSongs);
-    allSongs = builtInSongs.concat(customSongs);
+    allSongs = customSongs.concat(builtInSongs);
     if (currentSong && currentSong.id === id) {
       selectSong(allSongs[0], false);
     } else {
@@ -391,7 +490,7 @@
   function addCustomSong(song, autoSelect) {
     customSongs.unshift(song);
     PianoApp.songs.saveCustomSongs(customSongs);
-    allSongs = builtInSongs.concat(customSongs);
+    allSongs = customSongs.concat(builtInSongs);
     if (autoSelect) {
       selectSong(song, false);
     } else {
@@ -400,13 +499,32 @@
   }
 
   function openSongMenu() {
+    closeTunePanel();
     songMenu.hidden = false;
     songBtn.setAttribute('aria-expanded', 'true');
+    const activeEl = songListEl.querySelector('.song-item.active');
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   function closeSongMenu() {
     songMenu.hidden = true;
     songBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleTunePanel() {
+    const next = !tunePanel.classList.contains('open');
+    closeSongMenu();
+    tunePanel.classList.toggle('open', next);
+    tuneBtn.classList.toggle('active', next);
+    tuneBtn.setAttribute('aria-expanded', String(next));
+  }
+
+  function closeTunePanel() {
+    tunePanel.classList.remove('open');
+    tuneBtn.classList.remove('active');
+    tuneBtn.setAttribute('aria-expanded', 'false');
   }
 
   function isHandEnabled(hand) {
@@ -519,21 +637,22 @@
     const cx = rect.x + rect.w * 0.5;
     for (let i = 0; i < count; i++) {
       particles.push({
-        x: cx + (Math.random() - 0.5) * rect.w * 0.7,
+        x: cx + (Math.random() - 0.5) * rect.w * 0.72,
         y: waterfallH,
-        vx: (Math.random() - 0.5) * 44,
-        vy: -(28 + Math.random() * 68),
+        vx: (Math.random() - 0.5) * 46,
+        vy: -(30 + Math.random() * 70),
         r: 1.5 + Math.random() * 2.2,
         life: 1,
         color
       });
     }
-    if (particles.length > 140) particles.splice(0, particles.length - 140);
+    if (particles.length > 150) particles.splice(0, particles.length - 150);
   }
 
   // Recording toggle
   function toggleRecording() {
     if (!recording) {
+      cancelCountdown();
       setPlaying(false);
       recording = true;
       recStartPerf = 0;
@@ -613,6 +732,14 @@
 
   // Main update loop
   function update(dt) {
+    // Apply smooth pan inertia when not dragging
+    if (Math.abs(panVelocity) > 0.05 && waterfallPointers.size === 0) {
+      panBy(panVelocity * dt);
+      panVelocity *= Math.exp(-dt * 7.5);
+    } else if (waterfallPointers.size === 0) {
+      panVelocity = 0;
+    }
+
     // Smooth zoom/scale animation
     const ease = 1 - Math.exp(-dt * 11);
     viewStart += (targetStart - viewStart) * ease;
@@ -622,7 +749,15 @@
 
     computeKeyLayout();
 
-    if (playing && currentSong) {
+    // Between-songs 5-second countdown
+    if (countdownActive) {
+      countdownRemaining -= dt;
+      if (countdownRemaining <= 0) {
+        finishCountdownAndPlay();
+      } else {
+        updateCountdownVisual();
+      }
+    } else if (playing && currentSong) {
       if (learnMode) {
         refreshLearnWaitState();
       }
@@ -672,12 +807,9 @@
           currentTime = nextTime;
         }
 
-        if (currentTime > currentSong.duration + 0.6) {
-          if (loopMode) {
-            seekTo(-LEAD_IN);
-          } else {
-            setPlaying(false);
-          }
+        if (currentTime > currentSong.duration + 0.65) {
+          const targetSong = loopMode ? currentSong : getNextSong();
+          startBetweenSongCountdown(targetSong);
         }
         updateProgressUI();
       }
@@ -715,7 +847,7 @@
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvasW, waterfallH);
 
-    // Subtle vertical black-key and octave lanes (with clearer Middle C4 anchor)
+    // Subtle vertical black-key and octave lanes (with clear Middle C4 anchor)
     for (let i = 0; i < blackRects.length; i++) {
       const r = blackRects[i];
       ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
@@ -730,7 +862,7 @@
         ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
         ctx.fillRect(Math.round(r.x), 0, 1, waterfallH);
       } else if (r.midi % 12 === 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.075)';
         ctx.fillRect(Math.round(r.x), 0, 1, waterfallH);
       } else if (r.midi % 12 === 5) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
@@ -738,7 +870,7 @@
       }
     }
 
-    // Subtle horizontal beat/second grid lines
+    // Subtle horizontal time beat lines
     const pxPerSec = waterfallH / LOOKAHEAD_SEC;
     const gridStep = 1.0;
     const firstGrid = Math.ceil(currentTime / gridStep) * gridStep;
@@ -750,8 +882,10 @@
       }
     }
 
-    // 2. Falling notes + active key tracking
+    // 2. Falling notes + active & upcoming anticipation tracking
     const songActiveKeys = new Map(); // midi -> hand
+    const upcomingGlow = new Map(); // midi -> { amount, hand }
+
     if (currentSong) {
       const notes = currentSong.notes;
       const winStart = currentTime - 0.05;
@@ -775,10 +909,17 @@
         const hitting = currentTime >= n.time && currentTime <= noteEnd;
         if (hitting && enabled) {
           songActiveKeys.set(n.midi, n.hand);
+        } else if (enabled && n.time > currentTime && n.time - currentTime < 0.45) {
+          const amt = 1 - (n.time - currentTime) / 0.45;
+          const prev = upcomingGlow.get(n.midi);
+          if (!prev || amt > prev.amount) {
+            upcomingGlow.set(n.midi, { amount: amt, hand: n.hand });
+          }
         }
 
         const yBottom = waterfallH - (n.time - currentTime) * pxPerSec;
-        const yTop = waterfallH - (noteEnd - currentTime) * pxPerSec;
+        // Leave a crisp 2px separation at top so consecutive repeated notes stand out cleanly
+        const yTop = waterfallH - (noteEnd - currentTime) * pxPerSec + 2;
         const barH = Math.max(10, yBottom - yTop);
         const pad = rect.black ? Math.max(1, rect.w * 0.05) : Math.max(1.5, rect.w * 0.08);
         const bx = rect.x + pad;
@@ -789,17 +930,17 @@
         if (isLeft) {
           fillTop = rect.black ? '#8b5cf6' : '#c4b5fd';
           fillBot = rect.black ? '#6d28d9' : '#8b5cf6';
-          strokeCol = rect.black ? 'rgba(221, 214, 254, 0.6)' : 'rgba(255, 255, 255, 0.28)';
+          strokeCol = rect.black ? 'rgba(221, 214, 254, 0.62)' : 'rgba(255, 255, 255, 0.3)';
         } else {
           fillTop = rect.black ? '#0ea5e9' : '#7dd3fc';
           fillBot = rect.black ? '#0369a1' : '#0ea5e9';
-          strokeCol = rect.black ? 'rgba(186, 230, 253, 0.6)' : 'rgba(255, 255, 255, 0.28)';
+          strokeCol = rect.black ? 'rgba(186, 230, 253, 0.62)' : 'rgba(255, 255, 255, 0.3)';
         }
 
         ctx.globalAlpha = enabled ? 1 : 0.16;
 
         if (hitting && enabled) {
-          ctx.shadowColor = isLeft ? 'rgba(167, 139, 250, 0.8)' : 'rgba(56, 189, 248, 0.8)';
+          ctx.shadowColor = isLeft ? 'rgba(167, 139, 250, 0.85)' : 'rgba(56, 189, 248, 0.85)';
           ctx.shadowBlur = 18;
         } else {
           ctx.shadowBlur = 0;
@@ -818,7 +959,7 @@
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Crisp note label on the falling bar (easy to read from a real piano music stand)
+        // Crisp note label on the falling bar (readable from a real piano music stand)
         if (enabled && bw >= 16 && barH >= 16) {
           const info = MIDI_INFO[n.midi];
           const label = bw >= 28 ? info.fullName : info.noteName;
@@ -826,7 +967,7 @@
           ctx.font = '700 ' + fs.toFixed(1) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
-          ctx.fillStyle = rect.black ? 'rgba(255, 255, 255, 0.96)' : 'rgba(11, 13, 18, 0.86)';
+          ctx.fillStyle = rect.black ? 'rgba(255, 255, 255, 0.96)' : 'rgba(11, 13, 18, 0.88)';
           ctx.fillText(label, bx + bw * 0.5, Math.min(yBottom - 3, waterfallH - 3));
         }
       }
@@ -834,6 +975,29 @@
       ctx.globalAlpha = 1;
       ctx.restore();
     }
+
+    // 2.5. Subtle rising light beams from active keys
+    songActiveKeys.forEach((hand, midi) => {
+      const rect = keyRects.get(midi);
+      if (!rect) return;
+      const beamH = Math.min(110, waterfallH * 0.35);
+      const beamGrad = ctx.createLinearGradient(0, waterfallH, 0, waterfallH - beamH);
+      beamGrad.addColorStop(0, hand === 'left' ? 'rgba(167, 139, 250, 0.22)' : 'rgba(56, 189, 248, 0.22)');
+      beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = beamGrad;
+      ctx.fillRect(rect.x, waterfallH - beamH, rect.w, beamH);
+    });
+
+    userActiveKeys.forEach((st, midi) => {
+      const rect = keyRects.get(midi);
+      if (!rect) return;
+      const beamH = Math.min(110, waterfallH * 0.35);
+      const beamGrad = ctx.createLinearGradient(0, waterfallH, 0, waterfallH - beamH);
+      beamGrad.addColorStop(0, st.hitGood ? 'rgba(52, 211, 153, 0.28)' : 'rgba(56, 189, 248, 0.26)');
+      beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = beamGrad;
+      ctx.fillRect(rect.x, waterfallH - beamH, rect.w, beamH);
+    });
 
     // 3. Particles
     for (let i = 0; i < particles.length; i++) {
@@ -846,15 +1010,32 @@
     }
     ctx.globalAlpha = 1;
 
-    // 4. Hit line
+    // 4. Subtle 88-key range minimap strip at top of waterfall when zoomed in
+    const span = viewEnd - viewStart;
+    if (span < TOTAL_WHITES - 0.5) {
+      const mapPad = 12;
+      const mapW = Math.max(40, canvasW - mapPad * 2);
+      const mapY = 6;
+      const mapH = 3.5;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      drawRoundedRect(mapPad, mapY, mapW, mapH, 2);
+      ctx.fill();
+      const vx = mapPad + (viewStart / TOTAL_WHITES) * mapW;
+      const vw = Math.max(14, (span / TOTAL_WHITES) * mapW);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+      drawRoundedRect(vx, mapY, vw, mapH, 2);
+      ctx.fill();
+    }
+
+    // 5. Hit line
     const lineGrad = ctx.createLinearGradient(0, waterfallH - 3, 0, waterfallH + 1);
     lineGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
-    lineGrad.addColorStop(0.65, 'rgba(56, 189, 248, 0.36)');
-    lineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.25)');
+    lineGrad.addColorStop(0.65, 'rgba(56, 189, 248, 0.38)');
+    lineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.28)');
     ctx.fillStyle = lineGrad;
     ctx.fillRect(0, waterfallH - 3, canvasW, 4);
 
-    // 5. Piano keyboard (white keys)
+    // 6. Piano keyboard (white keys)
     const pulse = 0.55 + 0.45 * Math.sin(nowMs * 0.008);
     ctx.fillStyle = '#07080c';
     ctx.fillRect(0, waterfallH, canvasW, keyHeight);
@@ -864,6 +1045,7 @@
       const userState = userActiveKeys.get(r.midi);
       const songHand = songActiveKeys.get(r.midi);
       const isWaiting = waitingForInput && waitingLearnMidis.has(r.midi);
+      const upcoming = upcomingGlow.get(r.midi);
       const pressed = !!userState || !!songHand;
 
       const x = r.x + 0.6;
@@ -902,6 +1084,16 @@
       drawRoundedRect(x, r.y + (pressed ? 2 : 0), w, h - (pressed ? 2 : 0), Math.min(5, w * 0.25));
       ctx.fill();
 
+      // Pre-impact anticipation glow on top edge of key
+      if (!pressed && !isWaiting && upcoming) {
+        const ug = ctx.createLinearGradient(0, r.y, 0, r.y + h * 0.45);
+        const col = upcoming.hand === 'left' ? '167, 139, 250' : '56, 189, 248';
+        ug.addColorStop(0, 'rgba(' + col + ', ' + (upcoming.amount * 0.55).toFixed(3) + ')');
+        ug.addColorStop(1, 'rgba(' + col + ', 0)');
+        ctx.fillStyle = ug;
+        ctx.fillRect(x, r.y, w, h * 0.45);
+      }
+
       // Key name label
       const info = MIDI_INFO[r.midi];
       const isC = r.midi % 12 === 0;
@@ -933,12 +1125,13 @@
       }
     }
 
-    // 6. Piano keyboard (black keys)
+    // 7. Piano keyboard (black keys)
     for (let i = 0; i < blackRects.length; i++) {
       const r = blackRects[i];
       const userState = userActiveKeys.get(r.midi);
       const songHand = songActiveKeys.get(r.midi);
       const isWaiting = waitingForInput && waitingLearnMidis.has(r.midi);
+      const upcoming = upcomingGlow.get(r.midi);
       const pressed = !!userState || !!songHand;
 
       const x = r.x;
@@ -978,6 +1171,17 @@
       drawRoundedRect(x, r.y + (pressed ? 1.5 : 0), w, h - (pressed ? 1.5 : 0), Math.min(4, w * 0.28));
       ctx.fill();
 
+      // Pre-impact anticipation glow on black key
+      if (!pressed && !isWaiting && upcoming) {
+        const ug = ctx.createLinearGradient(0, r.y, 0, r.y + h * 0.55);
+        const col = upcoming.hand === 'left' ? '167, 139, 250' : '56, 189, 248';
+        ug.addColorStop(0, 'rgba(' + col + ', ' + (upcoming.amount * 0.72).toFixed(3) + ')');
+        ug.addColorStop(1, 'rgba(' + col + ', 0)');
+        ctx.fillStyle = ug;
+        drawRoundedRect(x, r.y, w, h * 0.55, Math.min(4, w * 0.28));
+        ctx.fill();
+      }
+
       // Subtle bevel highlight
       if (!pressed && !isWaiting && w >= 6) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
@@ -991,7 +1195,7 @@
         ctx.font = '600 ' + fontSize.toFixed(1) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillStyle = isWaiting ? '#0f172a' : (pressed ? '#ffffff' : 'rgba(226, 232, 240, 0.82)');
+        ctx.fillStyle = isWaiting ? '#0f172a' : (pressed ? '#ffffff' : 'rgba(226, 232, 240, 0.85)');
         ctx.fillText(info.noteName, x + w * 0.5, r.y + h - (pressed ? 5 : 7));
       }
     }
@@ -1016,8 +1220,8 @@
 
   // Pointer interaction on canvas:
   // Piano region -> multi-touch playing + glissando
-  // Waterfall region -> 1-finger pan, 2-finger pinch zoom
-  const waterfallPointers = new Map(); // pointerId -> { x, y }
+  // Waterfall region -> 1-finger pan with momentum, 2-finger pinch zoom
+  const waterfallPointers = new Map(); // pointerId -> { x, y, t }
   let pinchState = null;
 
   function updatePinchState() {
@@ -1031,6 +1235,7 @@
         startSpan: targetEnd - targetStart,
         startViewStart: targetStart
       };
+      panVelocity = 0;
     } else {
       pinchState = null;
     }
@@ -1038,6 +1243,7 @@
 
   canvas.addEventListener('pointerdown', (e) => {
     closeSongMenu();
+    closeTunePanel();
     PianoApp.audio.ensureContext();
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -1049,7 +1255,8 @@
       userNoteOn(midi, 0.84);
     } else {
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-      waterfallPointers.set(e.pointerId, { x, y });
+      panVelocity = 0;
+      waterfallPointers.set(e.pointerId, { x, y, t: performance.now() });
       updatePinchState();
     }
   });
@@ -1071,10 +1278,12 @@
     }
 
     if (waterfallPointers.has(e.pointerId)) {
+      const now = performance.now();
       const prev = waterfallPointers.get(e.pointerId);
-      waterfallPointers.set(e.pointerId, { x, y });
+      waterfallPointers.set(e.pointerId, { x, y, t: now });
 
       if (waterfallPointers.size === 2 && pinchState) {
+        manualZoomed = true;
         const pts = Array.from(waterfallPointers.values());
         const dist = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y));
         const scale = pinchState.dist / dist;
@@ -1100,8 +1309,11 @@
         fullScaleBtn.classList.toggle('active', fullScaleMode);
       } else if (waterfallPointers.size === 1) {
         const dx = x - prev.x;
+        const dtMs = Math.max(8, now - prev.t);
         const span = targetEnd - targetStart;
-        panBy((-dx / Math.max(1, canvasW)) * span);
+        const deltaWhites = (-dx / Math.max(1, canvasW)) * span;
+        panBy(deltaWhites);
+        panVelocity = clamp((deltaWhites / dtMs) * 1000, -45, 45);
       }
     }
   });
@@ -1120,6 +1332,9 @@
 
   canvas.addEventListener('pointerup', releasePointer);
   canvas.addEventListener('pointercancel', releasePointer);
+
+  // Prevent long-press context menu on mobile canvas
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // One-time mobile audio unlock on first touch
   global.addEventListener(
@@ -1152,7 +1367,8 @@
 
     if (e.code === 'Space') {
       e.preventDefault();
-      setPlaying(!playing);
+      if (countdownActive) finishCountdownAndPlay();
+      else setPlaying(!playing);
       return;
     }
     if (e.code === 'ArrowLeft') {
@@ -1165,6 +1381,7 @@
     }
     if (e.code === 'Escape') {
       closeSongMenu();
+      closeTunePanel();
       return;
     }
 
@@ -1197,8 +1414,16 @@
     else closeSongMenu();
   });
 
+  tuneBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleTunePanel();
+  });
+
+  tunePanel.addEventListener('click', (e) => e.stopPropagation());
+
   document.addEventListener('click', (e) => {
     if (!songPicker.contains(e.target)) closeSongMenu();
+    if (!tunePanel.contains(e.target) && !tuneBtn.contains(e.target)) closeTunePanel();
   });
 
   uploadBtn.addEventListener('click', () => fileInput.click());
@@ -1210,11 +1435,29 @@
   recordBtn.addEventListener('click', toggleRecording);
 
   restartBtn.addEventListener('click', () => {
+    cancelCountdown();
     seekTo(-LEAD_IN);
     setPlaying(true);
   });
 
-  playBtn.addEventListener('click', () => setPlaying(!playing));
+  playBtn.addEventListener('click', () => {
+    if (countdownActive) cancelCountdown();
+    else setPlaying(!playing);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const next = getNextSong();
+    if (playing || countdownActive) {
+      startBetweenSongCountdown(next);
+    } else {
+      selectSong(next, false);
+    }
+  });
+
+  countdownCard.addEventListener('click', () => {
+    PianoApp.audio.ensureContext();
+    finishCountdownAndPlay();
+  });
 
   loopBtn.addEventListener('click', () => {
     loopMode = !loopMode;
@@ -1261,6 +1504,7 @@
   zoomInBtn.addEventListener('click', () => zoomBy(-6));
   fullScaleBtn.addEventListener('click', () => {
     fullScaleMode = !fullScaleMode;
+    manualZoomed = fullScaleMode;
     applyScaleTarget(false);
   });
 
@@ -1275,6 +1519,7 @@
   let scrubbing = false;
   function scrubFromClientX(clientX) {
     if (!currentSong || currentSong.duration <= 0) return;
+    if (countdownActive) cancelCountdown();
     const rect = progressWrap.getBoundingClientRect();
     const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
     seekTo(ratio * currentSong.duration);
