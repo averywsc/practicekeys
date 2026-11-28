@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#12151e">
   <title>PracticeKeys</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
@@ -28,6 +30,13 @@
             </svg>
           </button>
           <div id="songMenu" class="song-menu" hidden>
+            <div class="song-search-wrap">
+              <svg class="icon icon-xs search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input id="songSearch" class="song-search" type="search" autocomplete="off" spellcheck="false" aria-label="Filter">
+            </div>
             <div id="songList" class="song-list"></div>
           </div>
         </div>
@@ -85,13 +94,14 @@
           </svg>
         </button>
 
-        <button id="loopBtn" class="icon-btn" aria-label="Loop">
+        <button id="loopBtn" class="icon-btn loop-btn" aria-label="Loop">
           <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="17 2 21 6 17 10"/>
             <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
             <polyline points="7 22 3 18 7 14"/>
             <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
+          <span id="loopAbDot" class="ab-dot" hidden></span>
         </button>
 
         <button id="learnBtn" class="icon-btn" aria-label="Learn">
@@ -112,7 +122,28 @@
               <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
             </svg>
             <input id="speedSlider" class="slider" type="range" min="0.2" max="1.5" step="0.05" value="1" aria-label="Speed">
+            <span id="speedPop" class="speed-pop" hidden>1.0x</span>
           </div>
+
+          <button id="metroBtn" class="icon-btn" aria-label="Metronome">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 20L10 4h4l4 16H6z"/>
+              <line x1="12" y1="17" x2="17" y2="7"/>
+              <circle cx="15.5" cy="10" r="1.4" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+
+          <button id="micBtn" class="icon-btn mic-btn" aria-label="Listen">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+
+          <button id="themeBtn" class="icon-btn theme-btn" aria-label="Theme">
+            <span class="theme-orb"></span>
+          </button>
 
           <div class="seg-group">
             <button id="leftHandBtn" class="icon-btn hand-btn hand-left active" aria-label="Left Hand">
@@ -160,14 +191,32 @@
           </svg>
         </button>
 
+        <button id="fsBtn" class="icon-btn fs-btn" aria-label="Fullscreen">
+          <svg id="fsEnterIcon" class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+          </svg>
+          <svg id="fsExitIcon" class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+            <path d="M8 3v3a2 2 0 0 1-2 2H3"/>
+            <path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
+            <path d="M3 16h3a2 2 0 0 1 2 2v3"/>
+            <path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+          </svg>
+        </button>
+
         <span id="midiDot" class="midi-dot" hidden></span>
       </div>
     </header>
 
     <div id="progressWrap" class="progress-wrap">
       <div id="progressTrack" class="progress-track">
+        <div id="loopRegion" class="loop-region" hidden></div>
         <div id="progressFill" class="progress-fill"></div>
         <div id="progressThumb" class="progress-thumb"></div>
+        <button id="loopHandleA" class="loop-handle" aria-label="Loop Start" hidden></button>
+        <button id="loopHandleB" class="loop-handle" aria-label="Loop End" hidden></button>
       </div>
     </div>
 
@@ -203,6 +252,7 @@
   <script defer src="js/parsers.js"></script>
   <script defer src="js/songs.js"></script>
   <script defer src="js/midi.js"></script>
+  <script defer src="js/mic.js"></script>
   <script defer src="js/app.js"></script>
 </body>
 </html>

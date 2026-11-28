@@ -10,14 +10,14 @@
       return Math.max(21, Math.min(108, Math.round(str)));
     }
     if (typeof str !== 'string') return null;
-    const m = str.trim().match(/^([A-Ga-g])([#b♯♭]?)(-?\d)$/);
+    const m = str.trim().match(/^([A-Ga-g])([#b\u266f\u266d]?)(-?\d)$/);
     if (!m) return null;
     const letter = m[1].toUpperCase();
     const acc = m[2];
     const oct = parseInt(m[3], 10);
     let semi = NOTE_BASE[letter];
-    if (acc === '#' || acc === '♯') semi += 1;
-    if (acc === 'b' || acc === '♭') semi -= 1;
+    if (acc === '#' || acc === '\u266f') semi += 1;
+    if (acc === 'b' || acc === '\u266d') semi -= 1;
     const midi = (oct + 1) * 12 + semi;
     return midi >= 21 && midi <= 108 ? midi : null;
   }
@@ -32,16 +32,108 @@
     return base || 'Untitled';
   }
 
-  function finalizeSong(name, rawNotes, idPrefix) {
+  function base64ToArrayBuffer(b64) {
+    const bin = global.atob ? global.atob(b64) : Buffer.from(b64, 'base64').toString('binary');
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  // Smart musical hand splitter for single-track piano files:
+  // Finds natural pitch register gaps near the center (e.g. D3..E4 vs A4..D6)
+  // rather than blindly cutting at MIDI 60.
+  function computeSmartSplitMidi(notes) {
+    if (!notes.length) return 60;
+    const present = new Set();
+    let minM = 108;
+    let maxM = 21;
+    for (let i = 0; i < notes.length; i++) {
+      const m = Math.round(notes[i].midi);
+      present.add(m);
+      if (m < minM) minM = m;
+      if (m > maxM) maxM = m;
+    }
+
+    if (maxM - minM <= 14) return 60;
+
+    // Look for empty pitch gaps between MIDI 52 and MIDI 72
+    let bestScore = -1;
+    let bestSplit = 60;
+    let runStart = -1;
+    for (let m = Math.max(minM + 1, 52); m <= Math.min(maxM, 72); m++) {
+      if (!present.has(m)) {
+        if (runStart < 0) runStart = m;
+      } else {
+        if (runStart >= 0) {
+          const gapLen = m - runStart;
+          const mid = (runStart + m - 1) * 0.5;
+          // Prefer wider gaps that sit comfortably in the middle register
+          const distPenalty = Math.abs(mid - 62) * 0.16;
+          const score = gapLen - distPenalty;
+          if (gapLen >= 2 && score > bestScore) {
+            bestScore = score;
+            bestSplit = mid;
+          }
+          runStart = -1;
+        }
+      }
+    }
+
+    if (bestScore >= 1.2) {
+      return bestSplit;
+    }
+
+    // Fallback: two-means pitch clustering biased gently toward Middle C
+    let loMean = Math.max(minM, 52);
+    let hiMean = Math.min(maxM, 68);
+    for (let iter = 0; iter < 6; iter++) {
+      let loSum = 0;
+      let loCnt = 0;
+      let hiSum = 0;
+      let hiCnt = 0;
+      const pivot = (loMean + hiMean) * 0.5;
+      for (let i = 0; i < notes.length; i++) {
+        const m = notes[i].midi;
+        if (m < pivot) {
+          loSum += m;
+          loCnt++;
+        } else {
+          hiSum += m;
+          hiCnt++;
+        }
+      }
+      if (loCnt > 0) loMean = loSum / loCnt;
+      if (hiCnt > 0) hiMean = hiSum / hiCnt;
+    }
+    const clusterSplit = (loMean + hiMean) * 0.5;
+    if (clusterSplit >= 54 && clusterSplit <= 67) {
+      return clusterSplit;
+    }
+    return 60;
+  }
+
+  function finalizeSong(name, rawNotes, idPrefix, meta) {
+    const extra = meta || {};
+    const hasExplicitHands = rawNotes.some((n) => n.hand === 'left' || n.hand === 'right');
+    const splitMidi = hasExplicitHands ? 60 : computeSmartSplitMidi(rawNotes);
+
     const notes = rawNotes
       .filter((n) => Number.isFinite(n.midi) && n.midi >= 21 && n.midi <= 108 && Number.isFinite(n.time))
-      .map((n) => ({
-        midi: Math.round(n.midi),
-        time: Math.max(0, n.time),
-        duration: Math.max(0.05, Number.isFinite(n.duration) ? n.duration : 0.35),
-        velocity: Number.isFinite(n.velocity) ? Math.max(0.1, Math.min(1, n.velocity)) : 0.78,
-        hand: n.hand === 'left' || n.hand === 'right' ? n.hand : (n.midi < 60 ? 'left' : 'right')
-      }))
+      .map((n) => {
+        const dur = Math.max(0.05, Number.isFinite(n.duration) ? n.duration : 0.35);
+        const audioDur = Number.isFinite(n.audioDuration) ? Math.max(dur, n.audioDuration) : dur;
+        return {
+          midi: Math.round(n.midi),
+          time: Math.max(0, n.time),
+          duration: dur,
+          audioDuration: audioDur,
+          velocity: Number.isFinite(n.velocity) ? Math.max(0.1, Math.min(1, n.velocity)) : 0.78,
+          hand: n.hand === 'left' || n.hand === 'right' ? n.hand : (n.midi <= splitMidi ? 'left' : 'right')
+        };
+      })
       .sort((a, b) => a.time - b.time || a.midi - b.midi);
 
     if (!notes.length) {
@@ -62,18 +154,20 @@
     }
 
     return {
-      id: (idPrefix || 'song') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      id: extra.id || ((idPrefix || 'song') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6)),
       name: cleanSongName(name),
       notes,
       duration,
       minMidi,
       maxMidi,
-      custom: true
+      bpm: Number.isFinite(extra.bpm) && extra.bpm > 20 ? extra.bpm : 100,
+      beatsPerBar: Number.isFinite(extra.beatsPerBar) && extra.beatsPerBar >= 2 ? extra.beatsPerBar : 4,
+      custom: extra.custom !== undefined ? !!extra.custom : true
     };
   }
 
-  // Standard MIDI File (SMF) parser
-  function parseMidi(arrayBuffer, filename) {
+  // Standard MIDI File (SMF) parser with tempo map, time signature, sustain pedal (CC 64), and smart hand split
+  function parseMidi(arrayBuffer, filename, options) {
     const view = new DataView(arrayBuffer);
     const bytes = new Uint8Array(arrayBuffer);
     let pos = 0;
@@ -114,6 +208,7 @@
 
     const tpq = (division & 0x8000) ? 480 : (division || 480);
     const tempoChanges = [{ tick: 0, usPerBeat: 500000 }];
+    let beatsPerBar = 4;
     const trackNotes = [];
     let metaTitle = '';
 
@@ -129,6 +224,7 @@
       let tick = 0;
       let runningStatus = 0;
       const openNotes = new Map();
+      const sustainByCh = new Map();
       const notesInTrack = [];
       let trackName = '';
 
@@ -150,6 +246,9 @@
           if (metaType === 0x51 && len === 3) {
             const us = (bytes[pos] << 16) | (bytes[pos + 1] << 8) | bytes[pos + 2];
             if (us > 0) tempoChanges.push({ tick, usPerBeat: us });
+          } else if (metaType === 0x58 && len >= 2) {
+            const num = bytes[pos];
+            if (num >= 2 && num <= 12) beatsPerBar = num;
           } else if (metaType === 0x03 && len > 0) {
             let txt = '';
             for (let i = 0; i < len; i++) {
@@ -175,13 +274,14 @@
               const key = ch + ':' + pitch;
               if (cmd === 0x90 && vel > 0) {
                 if (!openNotes.has(key)) openNotes.set(key, []);
-                openNotes.get(key).push({ tick, vel: vel / 127 });
+                openNotes.get(key).push({ tick, vel: vel / 127, ch });
               } else {
                 const stack = openNotes.get(key);
                 if (stack && stack.length) {
                   const start = stack.shift();
                   notesInTrack.push({
                     midi: pitch,
+                    ch: start.ch,
                     startTick: start.tick,
                     endTick: Math.max(start.tick + 1, tick),
                     velocity: start.vel
@@ -189,7 +289,14 @@
                 }
               }
             }
-          } else if (cmd === 0xa0 || cmd === 0xb0 || cmd === 0xe0) {
+          } else if (cmd === 0xb0) {
+            const cc = bytes[pos++];
+            const val = bytes[pos++];
+            if (cc === 64 && ch !== 9) {
+              if (!sustainByCh.has(ch)) sustainByCh.set(ch, []);
+              sustainByCh.get(ch).push({ tick, down: val >= 64 });
+            }
+          } else if (cmd === 0xa0 || cmd === 0xe0) {
             pos += 2;
           } else if (cmd === 0xc0 || cmd === 0xd0) {
             pos += 1;
@@ -200,10 +307,13 @@
       }
 
       openNotes.forEach((stack, key) => {
-        const pitch = parseInt(key.split(':')[1], 10);
+        const parts = key.split(':');
+        const ch = parseInt(parts[0], 10);
+        const pitch = parseInt(parts[1], 10);
         stack.forEach((start) => {
           notesInTrack.push({
             midi: pitch,
+            ch,
             startTick: start.tick,
             endTick: start.tick + tpq,
             velocity: start.vel
@@ -212,6 +322,31 @@
       });
 
       if (notesInTrack.length) {
+        // Compute sustain-extended audio end ticks per channel
+        for (let i = 0; i < notesInTrack.length; i++) {
+          const n = notesInTrack[i];
+          n.audioEndTick = n.endTick;
+          const pedList = sustainByCh.get(n.ch);
+          if (pedList && pedList.length) {
+            let downAtEnd = false;
+            let releaseTick = -1;
+            for (let p = 0; p < pedList.length; p++) {
+              const ev = pedList[p];
+              if (ev.tick <= n.endTick) {
+                downAtEnd = ev.down;
+              } else {
+                if (downAtEnd && !ev.down) {
+                  releaseTick = ev.tick;
+                }
+                break;
+              }
+            }
+            if (downAtEnd && releaseTick > n.endTick) {
+              n.audioEndTick = Math.min(releaseTick, n.endTick + tpq * 8);
+            }
+          }
+        }
+
         const avg = notesInTrack.reduce((s, n) => s + n.midi, 0) / notesInTrack.length;
         trackNotes.push({ name: trackName.toLowerCase(), avg, notes: notesInTrack });
       }
@@ -251,7 +386,9 @@
       return seg.sec + ((targetTick - seg.tick) / tpq) * (seg.usPerBeat / 1e6);
     }
 
+    const primaryBpm = Math.round(60e6 / (dedupTempo[0]?.usPerBeat || 500000));
     const combined = [];
+
     if (trackNotes.length >= 2) {
       const sortedByAvg = trackNotes.slice().sort((a, b) => b.avg - a.avg);
       const midPoint = Math.ceil(sortedByAvg.length / 2);
@@ -262,31 +399,98 @@
         for (const n of tr.notes) {
           const t0 = tickToSec(n.startTick);
           const t1 = tickToSec(n.endTick);
+          const ta = tickToSec(n.audioEndTick);
           combined.push({
             midi: n.midi,
             time: t0,
             duration: Math.max(0.06, t1 - t0),
+            audioDuration: Math.max(0.06, ta - t0),
             velocity: n.velocity,
             hand
           });
         }
       });
     } else if (trackNotes.length === 1) {
-      for (const n of trackNotes[0].notes) {
+      const raw = trackNotes[0].notes.map((n) => {
         const t0 = tickToSec(n.startTick);
         const t1 = tickToSec(n.endTick);
-        combined.push({
+        const ta = tickToSec(n.audioEndTick);
+        return {
           midi: n.midi,
           time: t0,
           duration: Math.max(0.06, t1 - t0),
-          velocity: n.velocity,
-          hand: n.midi < 60 ? 'left' : 'right'
-        });
+          audioDuration: Math.max(0.06, ta - t0),
+          velocity: n.velocity
+        };
+      });
+      const split = computeSmartSplitMidi(raw);
+      for (const n of raw) {
+        n.hand = n.midi <= split ? 'left' : 'right';
+        combined.push(n);
       }
     }
 
-    const displayName = filename ? cleanSongName(filename) : (metaTitle || 'MIDI Song');
-    return finalizeSong(displayName, combined, 'midi');
+    const opts = options || {};
+    const displayName = opts.name || (metaTitle && !filename ? metaTitle : (filename ? cleanSongName(filename) : (metaTitle || 'MIDI Song')));
+    return finalizeSong(displayName, combined, 'midi', {
+      id: opts.id,
+      custom: opts.custom,
+      bpm: primaryBpm,
+      beatsPerBar
+    });
+  }
+
+  // Export any song (including recorded custom pieces) as a Standard MIDI File
+  function exportMidi(song) {
+    const tpq = 480;
+    const bpm = song.bpm || 100;
+    const usPerBeat = Math.round(60e6 / bpm);
+    const secToTick = (sec) => Math.max(0, Math.round((sec * 1e6 / usPerBeat) * tpq));
+
+    const events = [];
+    for (const n of song.notes) {
+      const t0 = secToTick(n.time);
+      const t1 = Math.max(t0 + 12, secToTick(n.time + n.duration));
+      const vel = Math.max(20, Math.min(127, Math.round((n.velocity || 0.8) * 127)));
+      events.push({ tick: t0, order: 1, bytes: [0x90, n.midi & 0x7f, vel] });
+      events.push({ tick: t1, order: 0, bytes: [0x80, n.midi & 0x7f, 0] });
+    }
+    events.sort((a, b) => a.tick - b.tick || a.order - b.order);
+
+    const trackData = [];
+    function pushVLQ(v) {
+      let buf = [v & 0x7f];
+      v >>= 7;
+      while (v > 0) {
+        buf.push((v & 0x7f) | 0x80);
+        v >>= 7;
+      }
+      for (let i = buf.length - 1; i >= 0; i--) trackData.push(buf[i]);
+    }
+
+    // Tempo meta event at tick 0
+    trackData.push(0x00, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff);
+
+    let lastTick = 0;
+    for (const ev of events) {
+      pushVLQ(ev.tick - lastTick);
+      lastTick = ev.tick;
+      for (let i = 0; i < ev.bytes.length; i++) trackData.push(ev.bytes[i]);
+    }
+    // End of track
+    trackData.push(0x00, 0xff, 0x2f, 0x00);
+
+    const out = new Uint8Array(14 + 8 + trackData.length);
+    const dv = new DataView(out.buffer);
+    out.set([0x4d, 0x54, 0x68, 0x64], 0);
+    dv.setUint32(4, 6);
+    dv.setUint16(8, 0);
+    dv.setUint16(10, 1);
+    dv.setUint16(12, tpq);
+    out.set([0x4d, 0x54, 0x72, 0x6b], 14);
+    dv.setUint32(18, trackData.length);
+    out.set(trackData, 22);
+    return new Blob([out], { type: 'audio/midi' });
   }
 
   // Minimal ZIP extractor for .mxl (compressed MusicXML)
@@ -373,6 +577,8 @@
 
     const parts = Array.from(doc.querySelectorAll('part'));
     const allNotes = [];
+    let detectedBpm = 100;
+    let detectedBeats = 4;
 
     parts.forEach((part, partIdx) => {
       let divisions = 1;
@@ -394,21 +600,35 @@
               const d = parseFloat(divEl.textContent);
               if (d > 0) divisions = d;
             }
+            const beatsEl = el.querySelector('time > beats');
+            if (beatsEl) {
+              const b = parseInt(beatsEl.textContent, 10);
+              if (b >= 2 && b <= 12) detectedBeats = b;
+            }
           } else if (tag === 'direction') {
             const sound = el.querySelector('sound[tempo]');
             if (sound) {
               const bpm = parseFloat(sound.getAttribute('tempo'));
-              if (bpm > 15 && bpm < 400) tempoBpm = bpm;
+              if (bpm > 15 && bpm < 400) {
+                tempoBpm = bpm;
+                detectedBpm = bpm;
+              }
             } else {
               const perMin = el.querySelector('metronome > per-minute');
               if (perMin) {
                 const bpm = parseFloat(perMin.textContent);
-                if (bpm > 15 && bpm < 400) tempoBpm = bpm;
+                if (bpm > 15 && bpm < 400) {
+                  tempoBpm = bpm;
+                  detectedBpm = bpm;
+                }
               }
             }
           } else if (tag === 'sound') {
             const bpm = parseFloat(el.getAttribute('tempo'));
-            if (bpm > 15 && bpm < 400) tempoBpm = bpm;
+            if (bpm > 15 && bpm < 400) {
+              tempoBpm = bpm;
+              detectedBpm = bpm;
+            }
           } else if (tag === 'backup') {
             const durEl = el.querySelector('duration');
             const dur = durEl ? parseFloat(durEl.textContent) : 0;
@@ -480,7 +700,7 @@
       }
     });
 
-    return finalizeSong(title, allNotes, 'mxml');
+    return finalizeSong(title, allNotes, 'mxml', { bpm: detectedBpm, beatsPerBar: detectedBeats });
   }
 
   // ABC notation parser (.abc)
@@ -503,6 +723,7 @@
     let title = cleanSongName(filename);
     let unitBeats = 0.5;
     let bpm = 110;
+    let beatsPerBar = 4;
     let keyAlter = {};
     let currentVoice = '1';
     const voiceTime = new Map([['1', 0]]);
@@ -530,7 +751,10 @@
         const key = line[0];
         const val = line.slice(2).trim();
         if (key === 'T' && val) title = val;
-        else if (key === 'L') {
+        else if (key === 'M') {
+          const mm = val.match(/^(\d+)\s*\/\s*(\d+)/);
+          if (mm) beatsPerBar = parseInt(mm[1], 10) || 4;
+        } else if (key === 'L') {
           const m = val.match(/^(\d+)\s*\/\s*(\d+)$/);
           if (m) unitBeats = (parseInt(m[1], 10) / parseInt(m[2], 10)) * 4;
         } else if (key === 'Q') {
@@ -633,7 +857,7 @@
       voiceTime.set(currentVoice, t);
     }
 
-    return finalizeSong(title, notes, 'abc');
+    return finalizeSong(title, notes, 'abc', { bpm, beatsPerBar });
   }
 
   function readAbcPitch(line, startIdx, keyAlter, barAcc) {
@@ -717,7 +941,9 @@
     }
 
     const name = (data && !Array.isArray(data) && (data.name || data.title)) || cleanSongName(filename);
-    return finalizeSong(name, notes, 'json');
+    return finalizeSong(name, notes, 'json', {
+      bpm: data && !Array.isArray(data) ? Number(data.bpm) : 100
+    });
   }
 
   function parseTextSong(text, filename) {
@@ -803,11 +1029,13 @@
   PianoApp.parsers = {
     parseFile,
     parseMidi,
+    exportMidi,
     parseMusicXml,
     parseAbc,
     parseJsonSong,
     parseTextSong,
     noteNameToMidi,
+    base64ToArrayBuffer,
     finalizeSong
   };
 })(window);

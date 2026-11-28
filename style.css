@@ -131,6 +131,7 @@ button:focus-visible {
   align-items: center;
   justify-content: center;
   color: var(--muted);
+  position: relative;
   transition: background 140ms ease, color 140ms ease, transform 100ms ease, box-shadow 140ms ease;
 }
 
@@ -148,6 +149,43 @@ button:focus-visible {
   color: var(--accent);
 }
 
+.icon-btn.ab-active {
+  background: rgba(167, 139, 250, 0.22);
+  color: var(--lh);
+}
+
+.mic-btn.active {
+  background: rgba(52, 211, 153, 0.18);
+  color: var(--ok);
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.3);
+  animation: pulseMic 1.6s ease-in-out infinite;
+}
+
+@keyframes pulseMic {
+  0%, 100% { box-shadow: 0 0 8px rgba(52, 211, 153, 0.24); }
+  50% { box-shadow: 0 0 16px rgba(52, 211, 153, 0.55); }
+}
+
+.theme-orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: block;
+  background: linear-gradient(135deg, var(--lh) 0%, var(--lh) 48%, var(--rh) 52%, var(--rh) 100%);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+.ab-dot {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lh);
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.9);
+}
+
 .primary-btn {
   width: 38px;
   height: 38px;
@@ -159,7 +197,7 @@ button:focus-visible {
 .primary-btn:hover {
   background: #ffffff;
   color: #0b0d12;
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.24);
 }
 
 .seg-group {
@@ -188,11 +226,11 @@ button:focus-visible {
 }
 
 .hand-btn.hand-left.active {
-  background: rgba(167, 139, 250, 0.22);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .hand-btn.hand-right.active {
-  background: rgba(56, 189, 248, 0.22);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .hand-dot {
@@ -204,12 +242,12 @@ button:focus-visible {
 
 .hand-left .hand-dot {
   background: var(--lh);
-  box-shadow: 0 0 8px rgba(167, 139, 250, 0.65);
+  box-shadow: 0 0 8px var(--lh);
 }
 
 .hand-right .hand-dot {
   background: var(--rh);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
+  box-shadow: 0 0 8px var(--rh);
 }
 
 .record-btn .rec-dot {
@@ -243,6 +281,7 @@ button:focus-visible {
 }
 
 .speed-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -257,10 +296,28 @@ button:focus-visible {
   color: var(--muted);
 }
 
+.speed-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: rgba(14, 18, 28, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--rh);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
 .slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 68px;
+  width: 64px;
   height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
@@ -338,45 +395,81 @@ button:focus-visible {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: 264px;
-  max-height: min(420px, 65dvh);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  background: rgba(22, 26, 37, 0.96);
-  backdrop-filter: blur(16px);
+  width: 280px;
+  max-height: min(450px, 68dvh);
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 24, 34, 0.97);
+  backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 13px;
+  border-radius: 14px;
   padding: 6px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.65);
   z-index: 50;
 }
 
-.song-menu::-webkit-scrollbar {
-  width: 6px;
+.song-menu[hidden] {
+  display: none;
 }
 
-.song-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
+.song-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.search-icon {
+  color: var(--muted);
+}
+
+.song-search {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .song-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.song-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.song-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
 }
 
 .song-divider {
   height: 1px;
   margin: 5px 8px;
   background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .song-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   padding: 8.5px 10px;
   border-radius: 8px;
@@ -392,7 +485,7 @@ button:focus-visible {
 }
 
 .song-item.active {
-  background: rgba(56, 189, 248, 0.16);
+  background: rgba(255, 255, 255, 0.09);
   color: var(--rh);
   font-weight: 500;
 }
@@ -404,7 +497,13 @@ button:focus-visible {
   flex: 1;
 }
 
-.song-del {
+.song-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.song-act {
   width: 24px;
   height: 24px;
   border-radius: 6px;
@@ -416,11 +515,25 @@ button:focus-visible {
   transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 
-.song-item:hover .song-del {
+.song-item:hover .song-act,
+.song-act.starred {
   opacity: 1;
 }
 
-.song-del:hover {
+.song-act.starred {
+  color: #fbbf24;
+}
+
+.song-act:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--rh);
+}
+
+.song-act.song-star:hover {
+  color: #fbbf24;
+}
+
+.song-act.song-del:hover {
   background: rgba(244, 63, 94, 0.18);
   color: var(--danger);
 }
@@ -436,7 +549,7 @@ button:focus-visible {
 }
 
 .progress-wrap {
-  height: 12px;
+  height: 14px;
   background: var(--bg);
   display: flex;
   align-items: center;
@@ -448,15 +561,25 @@ button:focus-visible {
 
 .progress-track {
   width: 100%;
-  height: 3px;
+  height: 3.5px;
   background: rgba(255, 255, 255, 0.08);
   position: relative;
   transition: height 120ms ease;
 }
 
 .progress-wrap:hover .progress-track,
-.progress-wrap.dragging .progress-track {
+.progress-wrap.dragging .progress-track,
+.progress-wrap.has-ab .progress-track {
   height: 6px;
+}
+
+.loop-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(167, 139, 250, 0.38);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.45);
+  pointer-events: none;
 }
 
 .progress-fill {
@@ -464,6 +587,8 @@ button:focus-visible {
   width: 0%;
   background: linear-gradient(90deg, var(--lh), var(--rh));
   pointer-events: none;
+  position: relative;
+  z-index: 1;
 }
 
 .progress-thumb {
@@ -475,14 +600,35 @@ button:focus-visible {
   border-radius: 50%;
   background: #ffffff;
   transform: translate(-50%, -50%) scale(0);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+  box-shadow: 0 0 10px var(--rh);
   transition: transform 120ms ease;
   pointer-events: none;
+  z-index: 2;
 }
 
 .progress-wrap:hover .progress-thumb,
 .progress-wrap.dragging .progress-thumb {
   transform: translate(-50%, -50%) scale(1);
+}
+
+.loop-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--lh);
+  border: 2px solid #ffffff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px var(--lh);
+  z-index: 4;
+  cursor: ew-resize;
+}
+
+.loop-handle::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
 }
 
 #stage {
@@ -528,16 +674,16 @@ button:focus-visible {
   gap: 14px;
   padding: 22px 28px;
   border-radius: 26px;
-  background: rgba(14, 18, 28, 0.84);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  background: rgba(14, 18, 28, 0.86);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   transition: transform 140ms ease, border-color 140ms ease;
 }
 
 .countdown-card:hover {
   transform: scale(1.03);
-  border-color: rgba(56, 189, 248, 0.35);
+  border-color: var(--rh);
 }
 
 .countdown-card:active {
@@ -546,8 +692,8 @@ button:focus-visible {
 
 .countdown-ring-wrap {
   position: relative;
-  width: 104px;
-  height: 104px;
+  width: 108px;
+  height: 108px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -572,12 +718,12 @@ button:focus-visible {
   stroke-linecap: round;
   stroke-dasharray: 326.73;
   stroke-dashoffset: 0;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.65));
+  filter: drop-shadow(0 0 9px var(--rh));
 }
 
 .countdown-num {
   position: absolute;
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: #ffffff;
@@ -585,10 +731,10 @@ button:focus-visible {
 }
 
 .countdown-song {
-  font-size: 16px;
+  font-size: 16.5px;
   font-weight: 500;
   color: #e2e8f0;
-  max-width: 240px;
+  max-width: 248px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -597,7 +743,7 @@ button:focus-visible {
 .drop-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(11, 13, 18, 0.82);
+  background: rgba(11, 13, 18, 0.84);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -614,13 +760,13 @@ button:focus-visible {
   width: 132px;
   height: 132px;
   border-radius: 32px;
-  border: 2px dashed rgba(56, 189, 248, 0.75);
-  background: rgba(56, 189, 248, 0.08);
+  border: 2px dashed var(--rh);
+  background: rgba(56, 189, 248, 0.09);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--rh);
-  box-shadow: 0 0 50px rgba(56, 189, 248, 0.22);
+  box-shadow: 0 0 54px rgba(56, 189, 248, 0.24);
 }
 
 .drop-icon {
@@ -629,11 +775,11 @@ button:focus-visible {
 }
 
 @media (hover: none) {
-  .song-del {
+  .song-act {
     opacity: 0.72;
   }
   .progress-wrap {
-    height: 18px;
+    height: 20px;
   }
   .progress-thumb {
     transform: translate(-50%, -50%) scale(0.9);
@@ -649,7 +795,7 @@ button:focus-visible {
 }
 
 /* Tablet and mobile responsive bar with clean floating tune drawer */
-@media (max-width: 860px) {
+@media (max-width: 1040px) {
   #topbar {
     flex-wrap: wrap;
     padding: calc(env(safe-area-inset-top, 0px) + 7px) 10px 7px 10px;
@@ -681,7 +827,7 @@ button:focus-visible {
   .song-menu {
     width: calc(100vw - 20px);
     max-width: 360px;
-    max-height: 55dvh;
+    max-height: 58dvh;
   }
   .song-item {
     padding: 12px 12px;
@@ -691,22 +837,22 @@ button:focus-visible {
     flex: 1 1 auto;
     order: 2;
     justify-content: flex-start;
-    gap: 6px;
+    gap: 5px;
   }
   .bar-right {
     flex: 0 0 auto;
     order: 3;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 5px;
   }
   .icon-btn {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
   }
   .primary-btn {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
   }
   .tune-panel {
     display: none;
@@ -715,46 +861,48 @@ button:focus-visible {
     right: 10px;
     padding: 10px 12px;
     border-radius: 14px;
-    background: rgba(22, 26, 37, 0.96);
-    backdrop-filter: blur(16px);
+    background: rgba(20, 24, 34, 0.97);
+    backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
     z-index: 45;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 20px);
   }
   .tune-panel.open {
     display: inline-flex;
     animation: fadeIn 140ms ease;
   }
   .tune-panel .speed-wrap {
-    height: 38px;
-    padding: 0 11px;
+    height: 36px;
+    padding: 0 10px;
   }
   .tune-panel .slider {
-    width: 96px;
+    width: 86px;
   }
   .tune-panel .seg-group .icon-btn {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 390px) {
   #topbar {
     padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 6px 8px;
-    gap: 6px;
+    gap: 5px;
   }
   .bar-center,
   .bar-right {
     gap: 3px;
   }
   .icon-btn {
-    width: 34px;
-    height: 34px;
+    width: 33px;
+    height: 33px;
   }
   .primary-btn {
-    width: 38px;
-    height: 38px;
+    width: 37px;
+    height: 37px;
   }
   .tune-panel {
     left: 8px;
@@ -762,7 +910,7 @@ button:focus-visible {
     justify-content: space-between;
   }
   .tune-panel .slider {
-    width: 78px;
+    width: 70px;
   }
 }
 
